@@ -9,4 +9,8 @@ setup(
     description='Python talking to the Lean prover',
     packages=find_packages('src'),
     package_dir={'': 'src'},
-    install_requires=[])
+    install_requires=[],
+    extras_require = {
+                'trio':  ['trio>=0.13.0'],
+                'qt': ['PyQt5', 'PyQt5-stubs'],
+                'all' : ['PyQt5', 'PyQt5-stubs', 'trio>=0.13.0']})
