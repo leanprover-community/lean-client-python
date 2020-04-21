@@ -1,3 +1,16 @@
+"""
+Basic tools to convert back and forth between json expected or sent by the Lean
+server and python objets. Mostly based on the TypeScript version.
+
+Anything whose name contains Request is meant to be sent to the Lean server after
+conversion by its to_json method.
+
+Anything whose name contains Response is meant to be built from some json sent
+by the Lean server by the parse_response function at the bottom of this file.
+
+Everything else in this file are intermediate objects that will be contained in
+response objects.
+"""
 from dataclasses import dataclass
 from typing import Optional, List, NewType, ClassVar
 from enum import Enum
@@ -6,7 +19,9 @@ import json
 @dataclass
 class Request:
     command: ClassVar[str] = ''
-    seq_num: int
+
+    def __post_init__(self):
+        self.seq_num = 0
 
     def to_json(self) -> str:
         dic = self.__dict__.copy()
@@ -353,8 +368,8 @@ class SleepRequest(Request):
 class LongSleepRequest(Request):
     command = 'long_sleep'
 
+
 def parse_response(data: str) -> Response:
-    #print("Parsing: ",data)
     dic = json.loads(data)
     response = dic.pop('response')
     if response == 'ok':
@@ -375,7 +390,8 @@ def parse_response(data: str) -> Response:
     # Now try classes for messages that do have a helpful response field
     for cls in [AllMessagesResponse, CurrentTasksResponse, CommandResponse,
             ErrorResponse]:
-        if response == cls.response:
-            return cls.from_dict(dic)
+        if response == cls.response: # type: ignore
+            return cls.from_dict(dic) # type: ignore
+    raise ValueError("Couldn't parse response string.")
 
 

@@ -1,3 +1,9 @@
+"""
+Communicating with the Lean server in a Qt context.
+
+This is only the beginning, implementing reading a file and requesting tactic
+state. See the example use in examples/qt_interface.py.
+"""
 from PyQt5.QtCore import QProcess, pyqtSignal, QObject
 from PyQt5 import QtCore
 
@@ -27,18 +33,19 @@ class QtLeanServer(QObject):
         self.process.waitForStarted()
         self.seq_num = 0
 
+    def send(self, request):
+        self.seq_num += 1
+        request.seq_num = self.seq_num
+        self.process.write((request.to_json()+'\n').encode())
+
     def sync(self, file_name, content=None):
         """Send synchronisation query to Lean."""
-        self.seq_num += 1
-        req = SyncRequest(self.seq_num, file_name, content)
-        self.process.write((req.to_json()+'\n').encode())
+        self.send(SyncRequest(file_name, content))
         self.is_busy = True
 
     def info(self, filename, line, col):
         """Send info query to Lean."""
-        self.seq_num += 1
-        req = InfoRequest(self.seq_num, filename, line, col)
-        self.process.write((req.to_json()+'\n').encode())
+        self.send(InfoRequest(filename, line, col))
 
     def lean_finished(self):
         pass
