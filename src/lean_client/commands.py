@@ -99,8 +99,8 @@ class CommandResponse(Response):
 @dataclass
 class ErrorResponse(Response):
     response = 'error'
-    seq_num: Optional[int]
     message: str
+    seq_num: Optional[int] = None
 
 
 @dataclass
@@ -128,10 +128,10 @@ class CompleteRequest(Request):
 
 @dataclass
 class CompletionCandidate:
-    type_: Optional[str]
-    tactic_params: Optional[str]
     text: str
-    doc: Optional[str]
+    type_: Optional[str] = None
+    tactic_params: Optional[str] = None
+    doc: Optional[str] = None
 
     @classmethod
     def from_dict(cls, dic):
@@ -163,7 +163,7 @@ class InfoRequest(Request):
 class InfoSource:
     line: int
     column: int
-    file: Optional[str]
+    file: Optional[str] = None
 
 
 GoalState = NewType('GoalState', str)
@@ -192,7 +192,7 @@ class InfoRecord:
 
 @dataclass
 class InfoResponse(CommandResponse):
-    record: Optional[InfoRecord]
+    record: Optional[InfoRecord] = None
 
     @classmethod
     def from_dict(cls, dic):
@@ -208,10 +208,10 @@ class SearchRequest(Request):
 
 @dataclass
 class SearchItem:
-    source: Optional[InfoSource]
     text: str
     type_: str
-    doc: Optional[str]
+    source: Optional[InfoSource] = None
+    doc: Optional[str] = None
 
     @classmethod
     def from_dict(cls, dic):
@@ -315,8 +315,8 @@ class HoleReplacements:
 
 @dataclass
 class HoleResponse(CommandResponse):
-    replacements: Optional[HoleReplacements]
-    message: Optional[str]
+    replacements: Optional[HoleReplacements] = None
+    message: Optional[str] = None
 
     @classmethod
     def from_dict(cls, dic):
