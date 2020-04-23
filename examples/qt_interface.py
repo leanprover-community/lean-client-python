@@ -26,12 +26,13 @@ def read_lean_template(file_name: str = 'template.lean') -> Tuple[int, str]:
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, debug=False, **kwargs):
         """The main window containing everything."""
         super().__init__(*args, **kwargs)
         self.init_ui()
 
-        self.server = QtLeanServer()
+        self.debug = debug
+        self.server = QtLeanServer(debug=self.debug)
         self.server.incoming_message.connect(self.handle_message)
         self.server.state_update.connect(self.update_state)
         self.server.is_ready.connect(self.handle_ready)
@@ -152,6 +153,6 @@ class MainWindow(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    window = MainWindow()
+    window = MainWindow(debug=len(sys.argv) > 1 and sys.argv[1] == '--debug')
     window.show()
     app.exec_()

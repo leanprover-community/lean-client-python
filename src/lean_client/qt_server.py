@@ -16,10 +16,11 @@ class QtLeanServer(QObject):
     is_ready = pyqtSignal()
     error = pyqtSignal(str)
 
-    def __init__(self):
+    def __init__(self, debug=False):
         """Interface to Lean compatible with the Qt event loop and signaling
         framework."""
         super().__init__()
+        self.debug = debug
         self.messages = []
         self.goal_state = ''
         self.is_busy = False
@@ -29,13 +30,19 @@ class QtLeanServer(QObject):
         self.process.setProcessChannelMode(QtCore.QProcess.MergedChannels)
         self.process.readyReadStandardOutput.connect(self.lean_reply)
         self.process.finished.connect(self.lean_finished)
+        if self.debug:
+            print('Starting lean -- server...')
         self.process.start('lean --server', QtCore.QIODevice.ReadWrite)
         self.process.waitForStarted()
+        if self.debug:
+            print('Server has started.')
         self.seq_num = 0
 
     def send(self, request):
         self.seq_num += 1
         request.seq_num = self.seq_num
+        if self.debug:
+            print(f'Sending {request}')
         self.process.write((request.to_json()+'\n').encode())
 
     def sync(self, file_name, content=None):
@@ -55,6 +62,8 @@ class QtLeanServer(QObject):
         data = self.process.readAllStandardOutput().data().decode()
         for line in data.strip().split('\n'):
             resp = parse_response(line)
+            if self.debug:
+                print(f'Received {resp}')
             if isinstance(resp, InfoResponse):
                 self.goal_state = resp.record.state
                 self.state_update.emit()
