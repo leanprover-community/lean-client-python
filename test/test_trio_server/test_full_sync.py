@@ -27,7 +27,7 @@ class TestFullSync(unittest.TestCase):
 
             # now it is ok to get a new request
             LeanShouldGetRequest({"file_name": "test.lean", "line": 1, "column": 0, "seq_num": 2, "command": "info"}),
-            LeanSendsResponse({"is_running": False, "response": "current_tasks", "tasks": []}),
+            LeanSendsResponse({"response": "ok", "seq_num": 2}),
         ]
 
         async def check_waiting_behavior():

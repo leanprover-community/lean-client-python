@@ -84,11 +84,14 @@ class MockLeanServerProcess(trio.Process):
         return s1 == s2
 
     def collect_stdin_messages(self):
-        data = self.partial_message + self.stdin.get_data_nowait()
-        if data:
-            raw_messages = data.split(b"\n")
-            self.partial_message = raw_messages.pop()
-            self.messages.extend(self.parse_message(m) for m in raw_messages)
+        try:
+            data = self.stdin.get_data_nowait()
+        except trio.WouldBlock:  # no data
+            return
+
+        raw_messages = (self.partial_message + data).split(b"\n")
+        self.partial_message = raw_messages.pop()
+        self.messages.extend(self.parse_message(m) for m in raw_messages)
 
     async def assert_message_is_received(self, message_expected):
         await trio.sleep(0.01)
@@ -128,7 +131,7 @@ class MockLeanServerProcess(trio.Process):
                 print(f"\nLean sends the following bytes:\n{step.message_bytes}")
                 self.send_bytes(step.message_bytes)
             elif isinstance(step, LeanShouldNotGetRequest):
-                print(f"\nLean should receive have any requests yet.")
+                print(f"\nLean should not have received any requests yet.")
                 await self.assert_no_messages_received()
 
 
