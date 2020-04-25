@@ -84,6 +84,7 @@ class TrioLeanServer:
         """Fully compile a Lean file before returning."""
         # Waiting for the response is not enough, so we prepare another event
         await self.send(SyncRequest(filename, content))
+        self.is_fully_ready = trio.Event()
         await self.is_fully_ready.wait()
 
     async def state(self, filename, line, col) -> str:
