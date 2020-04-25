@@ -63,11 +63,14 @@ class TrioLeanServer:
         (tasks and messages) and triggering events when a response comes."""
         if not self.process:
             raise ValueError('No Lean server')
+        unfinished_message = b''
         async for data in self.process.stdout:
-            for line in data.decode().strip().split('\n'):
+            lines = (unfinished_message + data).split(b'\n')
+            unfinished_message = lines.pop()  # usually empty, but can be half a message
+            for line in lines:
                 if self.debug_bytes:
                     print(f'Received {line}')
-                resp = parse_response(line)
+                resp = parse_response(line.decode())
                 if self.debug:
                     print(f'Received {resp}')
                 if isinstance(resp, CurrentTasksResponse):
