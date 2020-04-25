@@ -17,7 +17,7 @@ from lean_client.commands import (parse_response, SyncRequest, InfoRequest,
 
 
 class TrioLeanServer:
-    def __init__(self, nursery, lean_cmd: Union[str, List[str]] = 'lean', debug=False):
+    def __init__(self, nursery, lean_cmd: Union[str, List[str]] = 'lean', debug=False, debug_bytes=False):
         """
         Lean server trio interface.
         """
@@ -28,6 +28,7 @@ class TrioLeanServer:
         self.current_tasks: List[Task] = []
         self.process: Optional[trio.Process] = None
         self.debug: bool = debug
+        self.debug_bytes: bool = debug_bytes
         # Each request, with sequence number seq_num, gets an event
         # self.response_events[seq_num] that it set when the response comes in
         self.response_events: Dict[int, trio.Event] = dict()
@@ -49,6 +50,9 @@ class TrioLeanServer:
         self.response_events[self.seq_num] = trio.Event()
         if self.debug:
             print(f'Sending {request}')
+        if self.debug_bytes:
+            bytes = (request.to_json() + '\n').encode()
+            print(f'Sending {bytes}')
         await self.process.stdin.send_all((request.to_json()+'\n').encode())
         await self.response_events[request.seq_num].wait()
         self.response_events.pop(request.seq_num)
@@ -61,6 +65,8 @@ class TrioLeanServer:
             raise ValueError('No Lean server')
         async for data in self.process.stdout:
             for line in data.decode().strip().split('\n'):
+                if self.debug_bytes:
+                    print(f'Received {line}')
                 resp = parse_response(line)
                 if self.debug:
                     print(f'Received {resp}')
@@ -78,7 +84,6 @@ class TrioLeanServer:
         """Fully compile a Lean file before returning."""
         # Waiting for the response is not enough, so we prepare another event
         await self.send(SyncRequest(filename, content))
-        self.is_fully_ready = trio.Event()
         await self.is_fully_ready.wait()
 
     async def state(self, filename, line, col) -> str:
