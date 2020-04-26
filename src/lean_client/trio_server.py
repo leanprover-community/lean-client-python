@@ -52,7 +52,7 @@ class TrioLeanServer:
             print(f'Sending {request}')
         if self.debug_bytes:
             bytes = (request.to_json() + '\n').encode()
-            print(f'Sending {bytes}')
+            print(f'Sending {bytes!r}')
         await self.process.stdin.send_all((request.to_json()+'\n').encode())
         await self.response_events[request.seq_num].wait()
         self.response_events.pop(request.seq_num)
