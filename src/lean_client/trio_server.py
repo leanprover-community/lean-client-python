@@ -12,7 +12,7 @@ from pathlib import Path
 import trio # type: ignore
 
 from lean_client.commands import (parse_response, SyncRequest, InfoRequest,
-        Request, CommandResponse, Message, Task, Response,
+        Request, CommandResponse, Message, Task, Response, SyncResponse, ErrorResponse,
         InfoResponse, AllMessagesResponse, Severity, CurrentTasksResponse)
 
 
@@ -86,9 +86,13 @@ class TrioLeanServer:
     async def full_sync(self, filename, content=None) -> None:
         """Fully compile a Lean file before returning."""
         # Waiting for the response is not enough, so we prepare another event
-        await self.send(SyncRequest(filename, content))
-        self.is_fully_ready = trio.Event()
-        await self.is_fully_ready.wait()
+        resp = await self.send(SyncRequest(filename, content))
+
+        if isinstance(resp, SyncResponse) and resp.message == "file invalidated":
+            self.is_fully_ready = trio.Event()
+            await self.is_fully_ready.wait()
+        elif isinstance(resp, ErrorResponse):
+            raise ValueError(f"Lean error during syncing:\n{resp}")  # TODO(jasonrute): this should be a better error type
 
     async def state(self, filename, line, col) -> str:
         """Tactic state"""

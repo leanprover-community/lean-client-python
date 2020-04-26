@@ -1,5 +1,5 @@
 from test.test_trio_server.mock_lean import \
-    LeanShouldGetRequest, LeanShouldNotGetRequest, LeanSendsResponse, start_with_mock_lean
+    LeanShouldGetRequest, LeanShouldNotGetRequest, LeanTakesTime, LeanSendsResponse, start_with_mock_lean
 from lean_client.trio_server import TrioLeanServer
 import trio
 import trio.testing
@@ -39,3 +39,80 @@ def test_full_sync_waits_until_lean_ready():
             nursery.cancel_scope.cancel()
 
     trio.run(check_waiting_behavior)
+
+
+def test_syncing_same_file_again():
+    """
+    If the same file is synced with no changes, then Lean won't send the same sort of responses.
+    """
+
+    mock_lean_script = [
+        # initial sync
+        LeanShouldGetRequest({"file_name": "test.lean", "seq_num": 1, "command": "sync"}),
+        LeanSendsResponse({"message": "file invalidated", "response": "ok", "seq_num": 1}),
+        LeanTakesTime(.01),
+        LeanSendsResponse({"is_running": False, "response": "current_tasks", "tasks": []}),
+
+        # sync same file again which hasn't changed.  Lean WON'T send a current_tasks response
+        LeanShouldGetRequest({"file_name": "test.lean", "seq_num": 2, "command": "sync"}),
+        LeanSendsResponse({"message": "file unchanged", "response": "ok", "seq_num": 2}),
+        LeanTakesTime(.01),
+
+        # The python-lean interface should not block and instead send an info request right away
+        LeanShouldGetRequest({"file_name": "test.lean", "line": 1, "column": 0, "seq_num": 3, "command": "info"}),
+        LeanSendsResponse({"response": "ok", "seq_num": 3}),
+    ]
+
+    async def check_behavior():
+        async with trio.open_nursery() as nursery:
+            server = TrioLeanServer(nursery)
+            await start_with_mock_lean(server, mock_lean_script)
+
+            await server.full_sync("test.lean")
+            await server.full_sync("test.lean")  # sync same file twice
+
+            await server.state(filename="test.lean", line=1, col=0)
+
+            nursery.cancel_scope.cancel()
+
+    trio.run(check_behavior)
+
+
+def test_error_in_sync():
+    """
+    If there is an error in syncing (such as the file not existing), then one shouldn't wait
+    for a current_tasks response.
+    """
+
+    mock_lean_script = [
+        # initial sync
+        LeanShouldGetRequest({"file_name": "bad_file_name", "seq_num": 1, "command": "sync"}),
+        LeanSendsResponse({"message": "file 'bad_file_name' not found in the LEAN_PATH", "response": "error", "seq_num": 1}),
+        LeanTakesTime(.01),
+
+        # the lean process should throw an error (which will be caught and handled)
+
+        # If this part fails, that means the interface blocked waiting for a current_tasks response
+        LeanShouldGetRequest({"file_name": "test.lean", "seq_num": 2, "command": "sync"}),
+        LeanSendsResponse({"message": "file unchanged", "response": "ok", "seq_num": 2}),
+        LeanTakesTime(.01),
+        LeanSendsResponse({"is_running": False, "response": "current_tasks", "tasks": []}),
+    ]
+
+    async def check_behavior():
+        async with trio.open_nursery() as nursery:
+            server = TrioLeanServer(nursery)
+            await start_with_mock_lean(server, mock_lean_script)
+
+            # for this test to pass it has to (1) not block forever and (2) throw an error
+            try:
+                await server.full_sync("bad_file_name")
+                assert True, "An error should have been thrown here"
+            except ValueError:
+                pass
+
+            await server.full_sync("test.lean")  # sync a different file
+
+            nursery.cancel_scope.cancel()
+
+    trio.run(check_behavior)
