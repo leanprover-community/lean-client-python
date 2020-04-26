@@ -9,6 +9,9 @@ setup(
     description='Python talking to the Lean prover',
     packages=find_packages('src'),
     package_dir={'': 'src'},
+    package_data = {
+        'lean_client': ['py.typed'],
+    },
     install_requires=[],
     extras_require = {
                 'trio':  ['trio>=0.13.0'],
