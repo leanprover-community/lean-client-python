@@ -1,8 +1,8 @@
 from test.test_trio_server.mock_lean import \
     LeanShouldGetRequest, LeanShouldNotGetRequest, LeanSendsResponse, start_with_mock_lean
 from lean_client.trio_server import TrioLeanServer
-import trio
-import trio.testing
+import trio # type: ignore
+import trio.testing # type: ignore
 
 
 def test_full_sync_waits_until_lean_ready():
