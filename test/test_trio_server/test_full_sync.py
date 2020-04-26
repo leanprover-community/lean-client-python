@@ -107,7 +107,7 @@ def test_error_in_sync():
             # for this test to pass it has to (1) not block forever and (2) throw an error
             try:
                 await server.full_sync("bad_file_name")
-                assert True, "An error should have been thrown here"
+                assert False, "An error should have been thrown here"
             except ValueError:
                 pass
 
