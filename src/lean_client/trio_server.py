@@ -5,7 +5,7 @@ Communicating with the Lean server in a trio context
 This is only the beginning, implementing reading a file and requesting tactic
 state. See the example use in examples/trio_example.py.
 """
-from typing import Optional, List, Dict, Awaitable
+from typing import Optional, List, Dict, Awaitable, Union
 from subprocess import PIPE
 from pathlib import Path
 
@@ -17,13 +17,13 @@ from lean_client.commands import (parse_response, SyncRequest, InfoRequest,
 
 
 class TrioLeanServer:
-    def __init__(self, nursery, lean_cmd: str = 'lean', debug=False):
+    def __init__(self, nursery, lean_cmd: Union[str, List[str]] = 'lean', debug=False):
         """
         Lean server trio interface.
         """
         self.nursery = nursery
         self.seq_num: int = 0
-        self.lean_cmd: str = lean_cmd
+        self.lean_cmd: List[str] = lean_cmd if isinstance(lean_cmd, List) else [lean_cmd]
         self.messages: List[Message] = []
         self.current_tasks: List[Task] = []
         self.process: Optional[trio.Process] = None
@@ -38,7 +38,7 @@ class TrioLeanServer:
 
     async def start(self):
         self.process = await trio.open_process(
-                [self.lean_cmd, "--server"], stdin=PIPE, stdout=PIPE)
+                self.lean_cmd + ["--server"], stdin=PIPE, stdout=PIPE)
         self.nursery.start_soon(self.receiver)
 
     async def send(self, request: Request) -> Response:
