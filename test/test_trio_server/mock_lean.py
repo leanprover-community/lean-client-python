@@ -6,11 +6,11 @@ Instead one can build a "lean script" which is run by a fake lean server.
 """
 
 import trio  # type: ignore
-from typing import List, Dict
+from typing import List, Dict, Deque, Awaitable
 import json
 from collections import deque
 from dataclasses import dataclass
-import trio.testing
+import trio.testing # type: ignore
 
 from lean_client.trio_server import TrioLeanServer
 
@@ -26,6 +26,10 @@ class LeanTakesTime(LeanScriptStep):
     """
     seconds: float
 
+    async def run(self, server: 'MockLeanServerProcess') -> Awaitable[None]:
+        print(f"\nLean is taking {self.seconds} seconds before doing anything.")
+        return await trio.sleep(self.seconds)
+
 
 @dataclass
 class LeanShouldGetRequest(LeanScriptStep):
@@ -34,6 +38,10 @@ class LeanShouldGetRequest(LeanScriptStep):
     """
     message: Dict  # should be JSON encodable
 
+    async def run(self, server: 'MockLeanServerProcess') -> Awaitable[None]:
+        print(f"\nLean should receive the following request:\n{self.message}")
+        return await server.assert_message_is_received(self.message)
+
 
 @dataclass
 class LeanSendsResponse(LeanScriptStep):
@@ -41,6 +49,10 @@ class LeanSendsResponse(LeanScriptStep):
     Simulate Lean's output behaviour
     """
     message: Dict  # should be JSON encodable
+
+    async def run(self, server: 'MockLeanServerProcess') -> None:
+        print(f"\nLean sends the following response:\n{self.message}")
+        server.send_message(self.message)
 
 
 @dataclass
@@ -51,13 +63,18 @@ class LeanSendsBytes(LeanScriptStep):
     """
     message_bytes: bytes
 
+    async def run(self, server: 'MockLeanServerProcess') -> None:
+        print(f"\nLean sends the following bytes:\n{self.message_bytes!r}")
+        server.send_bytes(self.message_bytes)
 
 @dataclass
 class LeanShouldNotGetRequest(LeanScriptStep):
     """
     Check that Lean has not received any requests (perhaps sent prematurely).
     """
-    pass
+    async def run(self, server: 'MockLeanServerProcess') -> Awaitable[None]:
+        print(f"\nLean should not have received any requests yet.")
+        return await server.assert_no_messages_received()
 
 
 
@@ -66,7 +83,7 @@ class MockLeanServerProcess(trio.Process):
     def __init__(self, script: List[LeanScriptStep]):
         self.stdin = trio.testing.MemorySendStream()      # a stream for mock lean to read from
         self.stdout = trio.testing.MemoryReceiveStream()  # a stream for mock lean to write to
-        self.messages: deque[Dict] = deque()
+        self.messages: Deque[Dict] = deque()
         self.partial_message: bytes = b""
         self.script: List[LeanScriptStep] = script
 
@@ -118,21 +135,7 @@ class MockLeanServerProcess(trio.Process):
 
     async def follow_script(self):
         for step in self.script:
-            if isinstance(step, LeanTakesTime):
-                print(f"\nLean is taking {step.seconds} seconds before doing anything.")
-                await trio.sleep(step.seconds)
-            elif isinstance(step, LeanShouldGetRequest):
-                print(f"\nLean should receive the following request:\n{step.message}")
-                await self.assert_message_is_received(step.message)
-            elif isinstance(step, LeanSendsResponse):
-                print(f"\nLean sends the following response:\n{step.message}")
-                self.send_message(step.message)
-            elif isinstance(step, LeanSendsBytes):
-                print(f"\nLean sends the following bytes:\n{step.message_bytes}")
-                self.send_bytes(step.message_bytes)
-            elif isinstance(step, LeanShouldNotGetRequest):
-                print(f"\nLean should not have received any requests yet.")
-                await self.assert_no_messages_received()
+            await step.run(self)
 
 
 async def start_with_mock_lean(lean_server: TrioLeanServer, script: List[LeanScriptStep]):
