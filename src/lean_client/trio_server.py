@@ -12,12 +12,12 @@ from pathlib import Path
 import trio # type: ignore
 
 from lean_client.commands import (parse_response, SyncRequest, InfoRequest,
-        Request, CommandResponse, Message, Task, Response,
+        Request, CommandResponse, Message, Task, Response, SyncResponse, ErrorResponse,
         InfoResponse, AllMessagesResponse, Severity, CurrentTasksResponse)
 
 
 class TrioLeanServer:
-    def __init__(self, nursery, lean_cmd: str = 'lean', debug=False):
+    def __init__(self, nursery, lean_cmd: str = 'lean', debug=False, debug_bytes=False):
         """
         Lean server trio interface.
         """
@@ -28,6 +28,7 @@ class TrioLeanServer:
         self.current_tasks: List[Task] = []
         self.process: Optional[trio.Process] = None
         self.debug: bool = debug
+        self.debug_bytes: bool = debug_bytes
         # Each request, with sequence number seq_num, gets an event
         # self.response_events[seq_num] that it set when the response comes in
         self.response_events: Dict[int, trio.Event] = dict()
@@ -49,6 +50,9 @@ class TrioLeanServer:
         self.response_events[self.seq_num] = trio.Event()
         if self.debug:
             print(f'Sending {request}')
+        if self.debug_bytes:
+            bytes = (request.to_json() + '\n').encode()
+            print(f'Sending {bytes}')
         await self.process.stdin.send_all((request.to_json()+'\n').encode())
         await self.response_events[request.seq_num].wait()
         self.response_events.pop(request.seq_num)
@@ -59,9 +63,14 @@ class TrioLeanServer:
         (tasks and messages) and triggering events when a response comes."""
         if not self.process:
             raise ValueError('No Lean server')
+        unfinished_message = b''
         async for data in self.process.stdout:
-            for line in data.decode().strip().split('\n'):
-                resp = parse_response(line)
+            lines = (unfinished_message + data).split(b'\n')
+            unfinished_message = lines.pop()  # usually empty, but can be half a message
+            for line in lines:
+                if self.debug_bytes:
+                    print(f'Received {line}')
+                resp = parse_response(line.decode())
                 if self.debug:
                     print(f'Received {resp}')
                 if isinstance(resp, CurrentTasksResponse):
@@ -77,9 +86,13 @@ class TrioLeanServer:
     async def full_sync(self, filename, content=None) -> None:
         """Fully compile a Lean file before returning."""
         # Waiting for the response is not enough, so we prepare another event
-        await self.send(SyncRequest(filename, content))
-        self.is_fully_ready = trio.Event()
-        await self.is_fully_ready.wait()
+        resp = await self.send(SyncRequest(filename, content))
+
+        if isinstance(resp, SyncResponse) and resp.message == "file invalidated":
+            self.is_fully_ready = trio.Event()
+            await self.is_fully_ready.wait()
+        elif isinstance(resp, ErrorResponse):
+            raise ValueError(f"Lean error during syncing:\n{resp}")  # TODO(jasonrute): this should be a better error type
 
     async def state(self, filename, line, col) -> str:
         """Tactic state"""

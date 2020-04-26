@@ -35,8 +35,8 @@ class Response:
 
     @classmethod
     def from_dict(cls, dic):
-        if 'message' in dic and cls != ErrorResponse:
-            dic.pop('message') # This is a hack for "file invalidated" messages
+        if 'message' in dic and cls != ErrorResponse and cls != SyncResponse:
+            dic.pop('message')  # TODO (jasonrute): Is this hack needed anymore?
         return cls(**dic)
 
 Severity = Enum('Severity', 'information warning error')
@@ -104,6 +104,13 @@ class ErrorResponse(Response):
 
 
 @dataclass
+class SyncResponse(Response):
+    response = 'ok'
+    message: str
+    seq_num: Optional[int] = None
+
+
+@dataclass
 class SyncRequest(Request):
     command = 'sync'
     file_name: str
@@ -161,8 +168,8 @@ class InfoRequest(Request):
 
 @dataclass
 class InfoSource:
-    line: int
-    column: int
+    line: int = None
+    column: int = None
     file: Optional[str] = None
 
 
@@ -385,6 +392,8 @@ def parse_response(data: str) -> Response:
             return AllHoleCommandsResponse.from_dict(dic)
         elif 'replacements' in dic:
             return HoleResponse.from_dict(dic)
+        elif 'message' in dic and dic['message'] in ["file invalidated", "file unchanged"]:
+            return SyncResponse.from_dict(dic)
 
 
     # Now try classes for messages that do have a helpful response field
