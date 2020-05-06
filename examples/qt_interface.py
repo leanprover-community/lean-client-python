@@ -14,14 +14,14 @@ UNSOLVED = 'tactic failed, there are unsolved goals'
 def read_lean_template(file_name: str = 'template.lean') -> Tuple[int, str]:
     """Read a template Lean file containing a single sorry.
     Returns the line number of the sorry and the content where
-    sorry is replaced by a string placeholder {}"""
+    sorry is replaced by a string placeholder REPLACE_ME"""
     text = Path(file_name).read_text()
     nb = 0
     for line in text.split('\n'):
         nb += 1
         if 'sorry' in line:
             break
-    return nb, text.replace('sorry', '{}')
+    return nb, text.replace('sorry', 'REPLACE_ME' , 1)
 
 
 
@@ -109,7 +109,7 @@ class MainWindow(QMainWindow):
 
     def update_file_content(self):
         """Update the code widget and send content to Lean"""
-        self.content = self.template.format('\n'.join(self.lines))
+        self.content = self.template.replace('REPLACE_ME','\n'.join(self.lines) ,1)
         self.code_widget.setPlainText(self.content)
         self.server.sync('template.lean', content=self.content)
 
