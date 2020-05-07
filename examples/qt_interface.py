@@ -12,9 +12,8 @@ from lean_client.qt_server import  QtLeanServer
 UNSOLVED = 'tactic failed, there are unsolved goals'
 
 def read_lean_template(file_name: str = 'template.lean') -> Tuple[int, str]:
-    """Read a template Lean file containing a single sorry.
-    Returns the line number of the sorry and the content where
-    sorry is replaced by a string placeholder REPLACE_ME"""
+    """Read a template Lean file containing at least one sorry.
+    Returns the line number of the first sorry"""
     text = Path(file_name).read_text()
     nb = 0
     for line in text.split('\n'):
