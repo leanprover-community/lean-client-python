@@ -21,7 +21,7 @@ def read_lean_template(file_name: str = 'template.lean') -> Tuple[int, str]:
         nb += 1
         if 'sorry' in line:
             break
-    return nb, text.replace('sorry', 'REPLACE_ME' , 1)
+    return nb, text
 
 
 
@@ -109,7 +109,7 @@ class MainWindow(QMainWindow):
 
     def update_file_content(self):
         """Update the code widget and send content to Lean"""
-        self.content = self.template.replace('REPLACE_ME','\n'.join(self.lines) ,1)
+        self.content = self.template.replace('sorry','\n'.join(self.lines) ,1)
         self.code_widget.setPlainText(self.content)
         self.server.sync('template.lean', content=self.content)
 
