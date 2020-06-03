@@ -1,3 +1,4 @@
+from lean_client.commands import SyncRequest, InfoRequest
 from test.test_trio_server.mock_lean import \
     LeanShouldGetRequest, LeanShouldNotGetRequest, LeanSendsResponse, start_with_mock_lean
 from lean_client.trio_server import TrioLeanServer
@@ -12,7 +13,7 @@ def test_full_sync_waits_until_lean_ready():
     before continuing.
     """
     mock_lean_script = [
-        LeanShouldGetRequest({"file_name": "test.lean", "content": '--', "seq_num": 1, "command": "sync"}),
+        LeanShouldGetRequest(SyncRequest(file_name="test.lean", content="--"), seq_num=1),
 
         # current_tasks response is sent BEFORE the ok response
         LeanSendsResponse({"is_running": False, "response": "current_tasks", "tasks": []}),
@@ -24,7 +25,7 @@ def test_full_sync_waits_until_lean_ready():
         LeanSendsResponse({"is_running": False, "response": "current_tasks", "tasks": []}),
 
         # now it is ok to get a new request
-        LeanShouldGetRequest({"file_name": "test.lean", "line": 1, "column": 0, "seq_num": 2, "command": "info"}),
+        LeanShouldGetRequest(InfoRequest(file_name="test.lean", line=1, column=0), seq_num=2),
         LeanSendsResponse({"response": "ok", "seq_num": 2}),
     ]
 
