@@ -12,6 +12,7 @@ from collections import deque
 from dataclasses import dataclass
 import trio.testing # type: ignore
 
+from lean_client.commands import Request
 from lean_client.trio_server import TrioLeanServer
 
 
@@ -32,15 +33,34 @@ class LeanTakesTime(LeanScriptStep):
 
 
 @dataclass
-class LeanShouldGetRequest(LeanScriptStep):
+class LeanShouldGetRequestJSON(LeanScriptStep):
     """
     Used to check that Lean gets the request it is looking for from Lean-Python interface.
+    This version is very specific.  It tests that the JSON produced by the Lean-Python interface is
+    as expected.
     """
     message: Dict  # should be JSON encodable
 
     async def run(self, server: 'MockLeanServerProcess') -> Awaitable[None]:
         print(f"\nLean should receive the following request:\n{self.message}")
         return await server.assert_message_is_received(self.message)
+
+
+@dataclass
+class LeanShouldGetRequest(LeanScriptStep):
+    """
+    Used to check that Lean gets the request it is looking for from Lean-Python interface.
+    This version is less specific.  It checks that the request is of the correct type and
+    has the desired fields.
+    """
+    request: Request
+    seq_num: int
+
+    async def run(self, server: 'MockLeanServerProcess') -> Awaitable[None]:
+        self.request.seq_num = self.seq_num
+        message = json.loads(self.request.to_json())
+        print(f"\nLean should receive the following request:\n{message}")
+        return await server.assert_message_is_received(message)
 
 
 @dataclass
