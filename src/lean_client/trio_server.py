@@ -89,6 +89,6 @@ class TrioLeanServer:
         else:
             return ''
 
-    async def kill(self):
+    def kill(self):
         """Kill the Lean process."""
-        await self.process.kill()
+        self.process.kill()
