@@ -124,7 +124,7 @@ class MockLeanServerProcess(trio.Process):
         await trio.sleep(0.01)
         self.collect_stdin_messages()
 
-        assert not self.messages, f"Mock Lean was not expecting as message, but \n{self.messages[0]}\nwas received."
+        assert not self.messages, f"Mock Lean was not expecting a message, but \n{self.messages[0]}\nwas received."
 
     def send_bytes(self, message_bytes: bytes):
         self.stdout.put_data(message_bytes)
