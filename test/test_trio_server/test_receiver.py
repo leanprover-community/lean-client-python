@@ -1,3 +1,4 @@
+from lean_client.commands import SyncRequest, InfoRequest
 from test.test_trio_server.mock_lean import \
     LeanShouldGetRequest, LeanSendsBytes, LeanSendsResponse, LeanShouldNotGetRequest, LeanTakesTime, start_with_mock_lean
 from lean_client.trio_server import TrioLeanServer
@@ -17,11 +18,11 @@ def test_reciever_processes_only_whole_messages():
 
     mock_lean_script = [
         # initial sync
-        LeanShouldGetRequest({"file_name": "test.lean", "content": 'example : true := \nbegin end', "seq_num": 1, "command": "sync"}),
+        LeanShouldGetRequest(SyncRequest(file_name="test.lean", content="example : true := \nbegin end"), seq_num=1),
         LeanSendsResponse({"message": "file invalidated", "response": "ok", "seq_num": 1}),
         LeanTakesTime(.01),
         LeanSendsResponse({"is_running": False, "response": "current_tasks", "tasks": []}),
-        LeanShouldGetRequest({"file_name": "test.lean", "line": 2, "column": 0, "seq_num": 2, "command": "info"}),
+        LeanShouldGetRequest(InfoRequest(file_name="test.lean", line=2, column=0), seq_num=2),
 
         # response sent in two chunks over the stream splitting the "⊢" character b'\xe2\x8a\xa2' in half.
         LeanSendsBytes(b'{"record":{"state":"\xe2\x8a'),
