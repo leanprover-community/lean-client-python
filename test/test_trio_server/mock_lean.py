@@ -40,10 +40,11 @@ class LeanShouldGetRequestJSON(LeanScriptStep):
     as expected.
     """
     message: Dict  # should be JSON encodable
+    wait_time_seconds: float = 0.1
 
     async def run(self, server: 'MockLeanServerProcess') -> Awaitable[None]:
         print(f"\nLean should receive the following request:\n{self.message}")
-        return await server.assert_message_is_received(self.message)
+        return await server.assert_message_is_received(self.message, self.wait_time_seconds)
 
 
 @dataclass
@@ -55,12 +56,13 @@ class LeanShouldGetRequest(LeanScriptStep):
     """
     request: Request
     seq_num: int
+    wait_time_seconds: float = 0.1
 
     async def run(self, server: 'MockLeanServerProcess') -> Awaitable[None]:
         self.request.seq_num = self.seq_num
         message = json.loads(self.request.to_json())
         print(f"\nLean should receive the following request:\n{message}")
-        return await server.assert_message_is_received(message)
+        return await server.assert_message_is_received(message, self.wait_time_seconds)
 
 
 @dataclass
@@ -92,9 +94,10 @@ class LeanShouldNotGetRequest(LeanScriptStep):
     """
     Check that Lean has not received any requests (perhaps sent prematurely).
     """
+    wait_time_seconds: float = 0.1
     async def run(self, server: 'MockLeanServerProcess') -> Awaitable[None]:
         print(f"\nLean should not have received any requests yet.")
-        return await server.assert_no_messages_received()
+        return await server.assert_no_messages_received(self.wait_time_seconds)
 
 
 
@@ -120,8 +123,20 @@ class MockLeanServerProcess(trio.Process):
         s2 = json.dumps(m2, sort_keys=True)
         return s1 == s2
 
-    def collect_stdin_messages(self):
+    async def collect_stdin_messages(self, wait_time_seconds: float):
+        """
+        This method waits wait_time_seconds for data (sent from the Trio client) to enter Mock Lean's stdin.
+        It has a few properties.
+        1. This coroutine (and the coroutines which call it) behave asynchronously.  In particular, it allows
+           passing execution from Mock Lean to the Trio lean client which runs asynchronously with Mock Lean.
+        2. It gives the Trio lean client time to send data to Mock Lean's stdin (and for that data to become available).
+           That amount of time can be adjusted with the wait_time_seconds parameter.
+        3. It does not block (except for the given wait time).  This way, it can handle the case where no data was sent.
+        """
+        # this sleep command accomplishes properties (1) and (2)
+        await trio.sleep(wait_time_seconds)
         try:
+            # we use the nowait version of get_data to accomplish property (3)
             data = self.stdin.get_data_nowait()
         except trio.WouldBlock:  # no data
             return
@@ -130,9 +145,9 @@ class MockLeanServerProcess(trio.Process):
         self.partial_message = raw_messages.pop()
         self.messages.extend(self.parse_message(m) for m in raw_messages)
 
-    async def assert_message_is_received(self, message_expected):
-        await trio.sleep(0.01)
-        self.collect_stdin_messages()
+    async def assert_message_is_received(self, message_expected: dict, wait_time_seconds: float):
+
+        await self.collect_stdin_messages(wait_time_seconds)
 
         assert self.messages, f"Mock Lean was expecting\n{message_expected}\nbut no messages were received."
 
@@ -140,9 +155,8 @@ class MockLeanServerProcess(trio.Process):
         assert self.messages_are_equal(message_expected, message_received), \
             f"Mock Lean was expecting\n{message_expected}\nbut received\n{message_received}"
 
-    async def assert_no_messages_received(self):
-        await trio.sleep(0.01)
-        self.collect_stdin_messages()
+    async def assert_no_messages_received(self, wait_time_seconds: float):
+        await self.collect_stdin_messages(wait_time_seconds)
 
         assert not self.messages, f"Mock Lean was not expecting a message, but \n{self.messages[0]}\nwas received."
 
