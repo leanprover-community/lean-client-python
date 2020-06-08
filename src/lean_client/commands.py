@@ -12,13 +12,14 @@ Everything else in this file are intermediate objects that will be contained in
 response objects.
 """
 from dataclasses import dataclass
-from typing import Optional, List, NewType, ClassVar
+from typing import Optional, List, NewType, ClassVar, Union
 from enum import Enum
 import json
 
-@dataclass
+
 class Request:
-    command: ClassVar[str] = ''
+    command: ClassVar[str]
+    expect_response: ClassVar[str]
 
     def __post_init__(self):
         self.seq_num = 0
@@ -29,17 +30,22 @@ class Request:
         return json.dumps(dic)
 
 
-@dataclass
 class Response:
     response: ClassVar[str]
 
-    @classmethod
-    def from_dict(cls, dic):
-        if 'message' in dic and cls != ErrorResponse:
-            dic.pop('message') # This is a hack for "file invalidated" messages
-        return cls(**dic)
+    @staticmethod
+    def parse_response(data: str) -> Union['AllMessagesResponse', 'CurrentTasksResponse', 'OkResponse', 'ErrorResponse']:
+        dic = json.loads(data)
+        response = dic.pop('response')
+
+        for cls in [AllMessagesResponse, CurrentTasksResponse, OkResponse, ErrorResponse]:
+            if response == cls.response:  # type: ignore
+                return cls.from_dict(dic)  # type: ignore
+        raise ValueError("Couldn't parse response string.")
+
 
 Severity = Enum('Severity', 'information warning error')
+
 
 @dataclass
 class Message:
@@ -57,6 +63,7 @@ class Message:
         dic['severity'] = getattr(Severity, dic['severity'])
         return cls(**dic)
 
+
 @dataclass
 class AllMessagesResponse(Response):
     response = 'all_messages'
@@ -65,6 +72,7 @@ class AllMessagesResponse(Response):
     @classmethod
     def from_dict(cls, dic):
         return cls([Message.from_dict(msg) for msg in dic['msgs']])
+
 
 @dataclass
 class Task:
@@ -89,23 +97,57 @@ class CurrentTasksResponse(Response):
         return cls(**dic)
 
 
-
-@dataclass
-class CommandResponse(Response):
-    response = 'ok'
-    seq_num: int
-
-
 @dataclass
 class ErrorResponse(Response):
     response = 'error'
     message: str
     seq_num: Optional[int] = None
 
+    @classmethod
+    def from_dict(cls, dic):
+        return cls(**dic)
+
+@dataclass
+class CommandResponse(Response):
+    """
+    Parent class for all 'ok' responses directly tied to a specific request.
+    """
+    command: ClassVar[str]
+    response = 'ok'
+    seq_num: int
+
+    @classmethod
+    def from_dict(cls, dic):
+        return cls(**dic)
+
+
+@dataclass
+class OkResponse(Response):
+    """
+    Intermediate representation of a CommandResponse which can be constructed from the
+    JSON alone.  It can later be converted to a CommandResponse.
+    """
+    response = 'ok'
+    seq_num: int
+    data: dict
+
+    @classmethod
+    def from_dict(cls, dic) -> 'OkResponse':
+        return OkResponse(seq_num=dic['seq_num'], data=dic)
+
+    def to_command_response(self, command: str) -> CommandResponse:
+        for cls in [CompleteResponse, InfoResponse, HoleCommandsResponse, SyncResponse,
+                    SearchResponse, AllHoleCommandsResponse, HoleResponse, RoiResponse]:
+            if cls.command == command:
+                self.data['seq_num'] = self.seq_num
+                return cls.from_dict(self.data)
+        raise ValueError("Couldn't parse response string.")
+
 
 @dataclass
 class SyncRequest(Request):
     command = 'sync'
+    expect_response = True
     file_name: str
     content: Optional[str] = None
 
@@ -118,8 +160,15 @@ class SyncRequest(Request):
 
 
 @dataclass
+class SyncResponse(CommandResponse):
+    command = 'sync'
+    message: Optional[str] = None
+
+
+@dataclass
 class CompleteRequest(Request):
     command = 'complete'
+    expect_response = True
     file_name: str
     line: int
     column: int
@@ -127,46 +176,53 @@ class CompleteRequest(Request):
 
 
 @dataclass
+class Source:
+    line: Optional[int] = None
+    column: Optional[int] = None
+    file: Optional[str] = None
+
+
+@dataclass
 class CompletionCandidate:
     text: str
     type_: Optional[str] = None
     tactic_params: Optional[str] = None
-    doc: Optional[str] = None
+    doc: Optional[str] = None,
+    source: Optional[Source] = None
 
     @classmethod
     def from_dict(cls, dic):
         dic['type_'] = dic.pop('type')
+        if 'source' in dic:
+            dic['source'] = Source(**dic.pop('source'))
         return cls(**dic)
 
 
 @dataclass
 class CompleteResponse(CommandResponse):
-    prefix: str
-    completions: List[CompletionCandidate]
+    command = 'complete'
+    prefix: Optional[str] = None
+    completions: Optional[List[CompletionCandidate]] = None
 
     @classmethod
     def from_dict(cls, dic):
-        dic['completions'] = [CompletionCandidate.from_dict(cdt)
-                              for cdt in dic.pop('completions')]
+        if 'completions' in dic:
+            dic['completions'] = [CompletionCandidate.from_dict(cdt)
+                                  for cdt in dic.pop('completions')]
         return cls(**dic)
 
 
 @dataclass
 class InfoRequest(Request):
     command = 'info'
+    expect_response = True
     file_name: str
     line: int
     column: int
 
 
-@dataclass
-class InfoSource:
-    line: int
-    column: int
-    file: Optional[str] = None
-
-
 GoalState = NewType('GoalState', str)
+
 
 @dataclass
 class InfoRecord:
@@ -174,7 +230,7 @@ class InfoRecord:
     text: Optional[str] = None
     type_: Optional[str] = None
     doc: Optional[str] = None
-    source: Optional[InfoSource] = None
+    source: Optional[Source] = None
     state: Optional[GoalState] = None
     tactic_param_idx: Optional[int] = None
     tactic_params: Optional[List[str]] = None
@@ -186,23 +242,26 @@ class InfoRecord:
         if 'type' in dic:
             dic['type_'] = dic.pop('type')
         if 'source' in dic:
-            dic['source'] = InfoSource(**dic.pop('source'))
+            dic['source'] = Source(**dic.pop('source'))
         return cls(**dic)
 
 
 @dataclass
 class InfoResponse(CommandResponse):
+    command = 'info'
     record: Optional[InfoRecord] = None
 
     @classmethod
     def from_dict(cls, dic):
-        dic['record'] = InfoRecord.from_dict(dic.pop('record'))
+        if 'record' in dic:
+            dic['record'] = InfoRecord.from_dict(dic.pop('record'))
         return cls(**dic)
 
 
 @dataclass
 class SearchRequest(Request):
     command = 'search'
+    expect_response = True
     query: str
 
 
@@ -210,17 +269,20 @@ class SearchRequest(Request):
 class SearchItem:
     text: str
     type_: str
-    source: Optional[InfoSource] = None
+    source: Optional[Source] = None
     doc: Optional[str] = None
 
     @classmethod
     def from_dict(cls, dic):
         dic['type_'] = dic.pop('type')
+        if 'source' in dic:
+            dic['source'] = Source(**dic.pop('source'))
         return cls(**dic)
 
 
 @dataclass
 class SearchResponse(CommandResponse):
+    command = 'search'
     results: List[SearchItem]
 
     @classmethod
@@ -233,6 +295,7 @@ class SearchResponse(CommandResponse):
 @dataclass
 class HoleCommandsRequest(Request):
     command = 'hole_commands'
+    expect_response = True
     file_name: str
     line: int
     column: int
@@ -243,14 +306,16 @@ class HoleCommandAction:
     name: str
     description: str
 
+
 @dataclass
 class Position:
     line: int
     column: int
 
+
 @dataclass
 class HoleCommands:
-    file_name: str
+    file: str
     start: Position
     end: Position
     results: List[HoleCommandAction]
@@ -259,22 +324,38 @@ class HoleCommands:
     def from_dict(cls, dic):
         dic['results'] = [HoleCommandAction(**hc)
                           for hc in dic.pop('results')]
+        dic['start'] = Position(**dic.pop('start'))
+        dic['end'] = Position(**dic.pop('end'))
         return cls(**dic)
 
 
 @dataclass
-class HoleCommandsResponse(CommandResponse, HoleCommands):
-    pass
+class HoleCommandsResponse(CommandResponse):
+    command = 'hole_commands'
+    message: Optional[str] = None
+    hole_commands: Optional[HoleCommands] = None
+
+    @classmethod
+    def from_dict(cls, dic):
+        if 'message' in dic:
+            dic['message'] = dic
+
+        if 'results' in dic:
+            dic['hole_commands'] = HoleCommands(**{k: dic.pop(k) for k in ('file', 'start', 'end', 'results')})
+
+        return cls(**dic)
 
 
 @dataclass
 class AllHoleCommandsRequest(Request):
     command = 'all_hole_commands'
+    expect_response = True
     file_name: str
 
 
 @dataclass
 class AllHoleCommandsResponse(CommandResponse):
+    command = 'all_hole_commands'
     holes: List[HoleCommands]
 
     @classmethod
@@ -287,10 +368,12 @@ class AllHoleCommandsResponse(CommandResponse):
 @dataclass
 class HoleRequest(Request):
     command = 'hole'
+    expect_response = True
     file_name: str
     line: int
     column: int
     action: str
+
 
 @dataclass
 class HoleReplacementAlternative:
@@ -300,7 +383,7 @@ class HoleReplacementAlternative:
 
 @dataclass
 class HoleReplacements:
-    file_name: str
+    file: str
     start: Position
     end: Position
     alternatives: List[HoleReplacementAlternative]
@@ -312,9 +395,9 @@ class HoleReplacements:
         return cls(**dic)
 
 
-
 @dataclass
 class HoleResponse(CommandResponse):
+    command = 'hole'
     replacements: Optional[HoleReplacements] = None
     message: Optional[str] = None
 
@@ -328,6 +411,7 @@ class HoleResponse(CommandResponse):
 
 CheckingMode = Enum('CheckingMode',
     'nothing visible-lines visible-lines-and-above visible-files open-files')
+
 
 @dataclass
 class RoiRange:
@@ -344,9 +428,11 @@ class FileRoi:
         return {'file_name': self.file_name,
                 'ranges': [rr.__dict__ for rr in self.ranges] }
 
+
 @dataclass
 class RoiRequest(Request):
     command = 'roi'
+    expect_response = True
     mode: CheckingMode
     files: List[FileRoi]
 
@@ -360,38 +446,19 @@ class RoiRequest(Request):
 
 
 @dataclass
+class RoiResponse(CommandResponse):
+    command = 'roi'
+
+
+@dataclass
 class SleepRequest(Request):
     command = 'sleep'
+    expect_response = False
 
 
 @dataclass
 class LongSleepRequest(Request):
     command = 'long_sleep'
-
-
-def parse_response(data: str) -> Response:
-    dic = json.loads(data)
-    response = dic.pop('response')
-    if response == 'ok':
-        if 'completions' in dic:
-            return CompleteResponse.from_dict(dic)
-        elif 'record' in dic:
-            return InfoResponse.from_dict(dic)
-        elif 'results' in dic and 'start' in dic:
-            return HoleCommandsResponse.from_dict(dic)
-        elif 'results' in dic:
-            return SearchResponse.from_dict(dic)
-        elif 'holes' in dic:
-            return AllHoleCommandsResponse.from_dict(dic)
-        elif 'replacements' in dic:
-            return HoleResponse.from_dict(dic)
-
-
-    # Now try classes for messages that do have a helpful response field
-    for cls in [AllMessagesResponse, CurrentTasksResponse, CommandResponse,
-            ErrorResponse]:
-        if response == cls.response: # type: ignore
-            return cls.from_dict(dic) # type: ignore
-    raise ValueError("Couldn't parse response string.")
+    expect_response = False
 
 

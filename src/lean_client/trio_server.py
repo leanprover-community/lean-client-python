@@ -5,15 +5,15 @@ Communicating with the Lean server in a trio context
 This is only the beginning, implementing reading a file and requesting tactic
 state. See the example use in examples/trio_example.py.
 """
-from typing import Optional, List, Dict, Awaitable, Union
+from typing import Optional, List, Dict, Union
 from subprocess import PIPE
-from pathlib import Path
 
 import trio # type: ignore
 
-from lean_client.commands import (parse_response, SyncRequest, InfoRequest,
-        Request, CommandResponse, Message, Task, Response,
-        InfoResponse, AllMessagesResponse, Severity, CurrentTasksResponse)
+from lean_client.commands import (SyncRequest, InfoRequest,
+                                  Request, CommandResponse, Message, Task,
+                                  InfoResponse, AllMessagesResponse, CurrentTasksResponse, ErrorResponse,
+                                  OkResponse, SyncResponse)
 
 
 class TrioLeanServer:
@@ -34,7 +34,7 @@ class TrioLeanServer:
         self.response_events: Dict[int, trio.Event] = dict()
         # and the corresponding response is stored in self.responses until
         # handled
-        self.responses: Dict[int, Response] = dict()
+        self.responses: Dict[int, Union[ErrorResponse, OkResponse]] = dict()
         self.is_fully_ready: trio.Event = trio.Event()
 
     async def start(self):
@@ -42,21 +42,38 @@ class TrioLeanServer:
                 self.lean_cmd + ["--server"], stdin=PIPE, stdout=PIPE)
         self.nursery.start_soon(self.receiver)
 
-    async def send(self, request: Request) -> Response:
+    async def send(self, request: Request) -> Optional[CommandResponse]:
         if not self.process:
             raise ValueError('No Lean server')
         self.seq_num += 1
         request.seq_num = self.seq_num
-        self.response_events[self.seq_num] = trio.Event()
+
         if self.debug:
             print(f'Sending {request}')
         if self.debug_bytes:
             bytes = (request.to_json() + '\n').encode()
             print(f'Sending {bytes!r}')
+
         await self.process.stdin.send_all((request.to_json()+'\n').encode())
+
+        # Some responses like sleep and long_sleep don't get responses
+        if not request.expect_response:
+            return None
+
+        self.response_events[self.seq_num] = trio.Event()
         await self.response_events[request.seq_num].wait()
         self.response_events.pop(request.seq_num)
-        return self.responses.pop(request.seq_num)
+
+        response = self.responses.pop(request.seq_num)
+
+        # Lean errors are rare and signify problems with the command itself
+        # (e.g. an incorrect file).  They should be raised as Python errors.
+        if isinstance(response, OkResponse):
+            response = response.to_command_response(request.command)
+        elif isinstance(response, ErrorResponse):
+            raise ChildProcessError(f'Lean server error while executing "{request.command}":\n{response}')
+
+        return response
 
     async def receiver(self):
         """This task waits for Lean responses, updating the server state
@@ -67,28 +84,33 @@ class TrioLeanServer:
         async for data in self.process.stdout:
             lines = (unfinished_message + data).split(b'\n')
             unfinished_message = lines.pop()  # usually empty, but can be half a message
+
             for line in lines:
                 if self.debug_bytes:
                     print(f'Received {line}')
-                resp = parse_response(line.decode())
+                resp = CommandResponse.parse_response(line.decode())
                 if self.debug:
                     print(f'Received {resp}')
+
                 if isinstance(resp, CurrentTasksResponse):
                     self.current_tasks = resp.tasks
                     if not resp.is_running:
                         self.is_fully_ready.set()
                 elif isinstance(resp, AllMessagesResponse):
                     self.messages = resp.msgs
-                if hasattr(resp, 'seq_num'):
+                elif isinstance(resp, (ErrorResponse, OkResponse)):
                     self.responses[resp.seq_num] = resp
                     self.response_events[resp.seq_num].set()
 
     async def full_sync(self, filename, content=None) -> None:
         """Fully compile a Lean file before returning."""
         # Waiting for the response is not enough, so we prepare another event
-        await self.send(SyncRequest(filename, content))
-        self.is_fully_ready = trio.Event()
-        await self.is_fully_ready.wait()
+        response = await self.send(SyncRequest(filename, content))
+        assert isinstance(response, SyncResponse)
+
+        if response.message == "file invalidated":
+            self.is_fully_ready = trio.Event()
+            await self.is_fully_ready.wait()
 
     async def state(self, filename, line, col) -> str:
         """Tactic state"""
@@ -98,6 +120,6 @@ class TrioLeanServer:
         else:
             return ''
 
-    async def kill(self):
+    def kill(self):
         """Kill the Lean process."""
-        await self.process.kill()
+        self.process.kill()
