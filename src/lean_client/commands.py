@@ -17,6 +17,11 @@ from enum import Enum
 import json
 
 
+def dict_to_dataclass(cls, dic: dict):
+    dic = {k: dic[k] for k in cls.__dataclass_fields__ if k in dic}
+    return cls(**dic)
+
+
 class Request:
     command: ClassVar[str]
     expect_response: ClassVar[str]
@@ -44,6 +49,7 @@ class Response:
         raise ValueError("Couldn't parse response string.")
 
 
+
 Severity = Enum('Severity', 'information warning error')
 
 
@@ -61,7 +67,7 @@ class Message:
     @classmethod
     def from_dict(cls, dic):
         dic['severity'] = getattr(Severity, dic['severity'])
-        return cls(**dic)
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
@@ -93,8 +99,8 @@ class CurrentTasksResponse(Response):
 
     @classmethod
     def from_dict(cls, dic):
-        dic['tasks'] = [Task(**task) for task in dic.pop('tasks')]
-        return cls(**dic)
+        dic['tasks'] = [dict_to_dataclass(Task, task) for task in dic.pop('tasks')]
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
@@ -105,7 +111,7 @@ class ErrorResponse(Response):
 
     @classmethod
     def from_dict(cls, dic):
-        return cls(**dic)
+        return dict_to_dataclass(cls, dic)
 
 @dataclass
 class CommandResponse(Response):
@@ -118,7 +124,7 @@ class CommandResponse(Response):
 
     @classmethod
     def from_dict(cls, dic):
-        return cls(**dic)
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
@@ -194,8 +200,8 @@ class CompletionCandidate:
     def from_dict(cls, dic):
         dic['type_'] = dic.pop('type')
         if 'source' in dic:
-            dic['source'] = Source(**dic.pop('source'))
-        return cls(**dic)
+            dic['source'] = dict_to_dataclass(Source, dic.pop('source'))
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
@@ -209,7 +215,7 @@ class CompleteResponse(CommandResponse):
         if 'completions' in dic:
             dic['completions'] = [CompletionCandidate.from_dict(cdt)
                                   for cdt in dic.pop('completions')]
-        return cls(**dic)
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
@@ -242,8 +248,8 @@ class InfoRecord:
         if 'type' in dic:
             dic['type_'] = dic.pop('type')
         if 'source' in dic:
-            dic['source'] = Source(**dic.pop('source'))
-        return cls(**dic)
+            dic['source'] = dict_to_dataclass(Source, dic.pop('source'))
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
@@ -255,7 +261,7 @@ class InfoResponse(CommandResponse):
     def from_dict(cls, dic):
         if 'record' in dic:
             dic['record'] = InfoRecord.from_dict(dic.pop('record'))
-        return cls(**dic)
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
@@ -276,8 +282,8 @@ class SearchItem:
     def from_dict(cls, dic):
         dic['type_'] = dic.pop('type')
         if 'source' in dic:
-            dic['source'] = Source(**dic.pop('source'))
-        return cls(**dic)
+            dic['source'] = dict_to_dataclass(Source, dic.pop('source'))
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
@@ -289,7 +295,7 @@ class SearchResponse(CommandResponse):
     def from_dict(cls, dic):
         dic['results'] = [SearchItem.from_dict(si)
                           for si in dic.pop('results')]
-        return cls(**dic)
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
@@ -322,28 +328,31 @@ class HoleCommands:
 
     @classmethod
     def from_dict(cls, dic):
-        dic['results'] = [HoleCommandAction(**hc)
+        dic['results'] = [dict_to_dataclass(HoleCommandAction, hc)
                           for hc in dic.pop('results')]
-        dic['start'] = Position(**dic.pop('start'))
-        dic['end'] = Position(**dic.pop('end'))
-        return cls(**dic)
+        dic['start'] = dict_to_dataclass(Position, dic.pop('start'))
+        dic['end'] = dict_to_dataclass(Position, dic.pop('end'))
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
 class HoleCommandsResponse(CommandResponse):
     command = 'hole_commands'
     message: Optional[str] = None
-    hole_commands: Optional[HoleCommands] = None
+    file: str = None
+    start: Optional[Position] = None
+    end: Optional[Position] = None
+    results: Optional[List[HoleCommandAction]] = None
 
     @classmethod
     def from_dict(cls, dic):
-        if 'message' in dic:
-            dic['message'] = dic
-
         if 'results' in dic:
-            dic['hole_commands'] = HoleCommands(**{k: dic.pop(k) for k in ('file', 'start', 'end', 'results')})
+            dic['results'] = [dict_to_dataclass(HoleCommandAction, hc)
+                              for hc in dic.pop('results')]
+            dic['start'] = dict_to_dataclass(Position, dic.pop('start'))
+            dic['end'] = dict_to_dataclass(Position, dic.pop('end'))
 
-        return cls(**dic)
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
@@ -362,7 +371,7 @@ class AllHoleCommandsResponse(CommandResponse):
     def from_dict(cls, dic):
         dic['holes'] = [HoleCommands.from_dict(hole)
                           for hole in dic.pop('holes')]
-        return cls(**dic)
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
@@ -390,9 +399,11 @@ class HoleReplacements:
 
     @classmethod
     def from_dict(cls, dic):
-        dic['alternatives'] = [HoleReplacementAlternative(**alt)
+        dic['alternatives'] = [dict_to_dataclass(HoleReplacementAlternative, alt)
                                for alt in dic.pop('alternatives')]
-        return cls(**dic)
+        dic['start'] = dict_to_dataclass(Position, dic.pop('start'))
+        dic['end'] = dict_to_dataclass(Position, dic.pop('end'))
+        return dict_to_dataclass(cls, dic)
 
 
 @dataclass
@@ -406,7 +417,7 @@ class HoleResponse(CommandResponse):
         if 'replacements' in dic:
             dic['replacements'] = HoleReplacements.from_dict(
                     dic.pop('replacements'))
-        return cls(**dic)
+        return dict_to_dataclass(cls, dic)
 
 
 CheckingMode = Enum('CheckingMode',
