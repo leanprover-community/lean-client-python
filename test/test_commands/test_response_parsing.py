@@ -85,15 +85,17 @@ class TestCurrentTasksResponse:
         assert resp.response == "current_tasks"
         assert resp.tasks == []
 
-    def test_multiple_tasks(self):
-        # TODO: Find example where tasks is not empty
-        # TODO: Find example where is_running = true
-        pass
+    def test_running_tasks(self):
+        response_json = '{"is_running":true,"response":"current_tasks","tasks":[{"desc":"parsing at line 1","end_pos_col":70,"end_pos_line":1,"file_name":"test.lean","pos_col":0,"pos_line":1}]}'
+        resp = cmds.Response.parse_response(response_json)
+
+        assert isinstance(resp, cmds.CurrentTasksResponse)
+        assert resp.is_running == True
+        assert resp.response == "current_tasks"
+        assert resp.tasks == [cmds.Task(desc='parsing at line 1', end_pos_col=70, end_pos_line=1, file_name='test.lean', pos_col=0, pos_line=1)]
 
 
 class TestErrorResponse:
-    # TODO: Find more examples of error responses
-
     def test_missing_file_error(self):
         response_json = '{"message":"file \'missing.lean\' not found in the LEAN_PATH","response":"error","seq_num":3}'
         resp = cmds.Response.parse_response(response_json)
@@ -104,11 +106,23 @@ class TestErrorResponse:
         assert resp.seq_num == 3
 
     def test_error_with_no_seq_num(self):
-        response_json = '{"message":"Made up error response","response":"error"}'
+        response_json = '{"message":"key \'seq_num\' not found","response":"error"}'
         resp = cmds.Response.parse_response(response_json)
 
         assert isinstance(resp, cmds.ErrorResponse)
-        assert resp.message == "Made up error response","response"
+        assert resp.message == "key 'seq_num' not found"
+        assert resp.response == "error"
+        assert resp.seq_num == None
+
+    def test_extra_fields(self):
+        """
+        Should not crash if given extra fields where are added in later versions of Lean.
+        """
+        response_json = '{"_new_field_a":123,"message":"key \'seq_num\' not found","response":"error"}'
+        resp = cmds.Response.parse_response(response_json)
+
+        assert isinstance(resp, cmds.ErrorResponse)
+        assert resp.message == "key 'seq_num' not found"
         assert resp.response == "error"
         assert resp.seq_num == None
 
@@ -274,8 +288,46 @@ class TestCommandResponse:
             )
 
     class TestInfoResponse:
-        #TODO(Jason): Fill in
-        pass
+        def test_empty(self):
+            TestCommandResponse.run_tests(
+                response_json='{"response":"ok","seq_num":24}',
+                response_type=cmds.InfoResponse
+            )
+
+        def test_state(self):
+            TestCommandResponse.run_tests(
+                response_json='{"record":{"state":"p q : Prop,\\na : p,\\nb : q\\n⊢ p ∧ q ∧ p"},"response":"ok","seq_num":4}',
+                response_type=cmds.InfoResponse
+            )
+
+        def test_doc(self):
+            TestCommandResponse.run_tests(
+                response_json='{"record":{"doc":" Pi or elet introduction. \\nGiven the tactic state `⊢ Π x : α, Y`, ``intro `hello`` will produce the state `hello : α ⊢ Y[x/hello]`.\\nReturns the new local constant. Similarly for `elet` expressions. \\nIf the target is not a Pi or elet it will try to put it in WHNF.","full-id":"tactic.intro","state":"a b c : ℕ\\n⊢ a = b → c = b → a = c","type":"name → tactic expr"},"response":"ok","seq_num":6}',
+                response_type=cmds.InfoResponse,
+                replacement_keys={'full-id': 'full_id', "type": "type_"}
+            )
+
+        def test_full_id_and_type(self):
+            TestCommandResponse.run_tests(
+                response_json='{"record":{"full-id":"n","type":"ℕ"},"response":"ok","seq_num":2}',
+                response_type=cmds.InfoResponse,
+                replacement_keys={'full-id': 'full_id', "type": "type_"}
+            )
+
+        def test_param_stuff(self):
+            TestCommandResponse.run_tests(
+                response_json='{"record":{"doc":"An abbreviation for `rewrite`.","source":{"column":10,"file":"test.lean","line":186},"state":"no goals","tactic_param_idx":0,"tactic_params":["([ (←? expr), ... ] | ←? expr)","(at (* | (⊢ | id)*))?","tactic.rewrite_cfg?"],"text":"rw","type":"interactive.parse tactic.interactive.rw_rules → interactive.parse interactive.types.location → opt_param tactic.rewrite_cfg {to_apply_cfg := {md := reducible, approx := tt, new_goals := tactic.new_goals.non_dep_first, instances := tt, auto_param := tt, opt_param := tt, unify := tt}, symm := ff, occs := occurrences.all} → tactic unit"},"response":"ok","seq_num":8}',
+                response_type=cmds.InfoResponse,
+                replacement_keys={'full-id': 'full_id', "type": "type_"}
+            )
+
+        def test_text_and_source(self):
+            TestCommandResponse.run_tests(
+                response_json='{"record":{"source":{"column":10,"file":"test.lean","line":186},"state":"Custom state: 2\\n2 goals\\np q : Prop,\\na : p,\\na_1 : q\\n⊢ p\\n\\np q : Prop,\\na : p,\\na_1 : q\\n⊢ q","tactic_params":[],"text":"assumption","type":"mytac unit"},"response":"ok","seq_num":66}',
+                response_type=cmds.InfoResponse,
+                replacement_keys = {'full-id': 'full_id', "type": "type_"}
+            )
+
 
     class TestSearchResponse:
         def test_searches_found(self):
@@ -291,4 +343,3 @@ class TestCommandResponse:
                 response_json='{"response":"ok","seq_num":23}',
                 response_type=cmds.RoiResponse
             )
-
