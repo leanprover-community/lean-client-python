@@ -1,6 +1,6 @@
 from lean_client.commands import SyncRequest, InfoRequest
 from test.test_trio_server.mock_lean import \
-    LeanShouldGetRequest, LeanSendsBytes, LeanSendsResponse, LeanShouldNotGetRequest, LeanTakesTime, start_with_mock_lean
+    LeanShouldGetRequest, LeanSendsBytes, LeanSendsResponse, LeanTakesTime, start_with_mock_lean
 from lean_client.trio_server import TrioLeanServer
 import trio
 import trio.testing
