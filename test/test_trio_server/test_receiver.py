@@ -6,7 +6,7 @@ import trio
 import trio.testing
 
 
-def test_reciever_processes_only_whole_messages():
+def test_receiver_processes_only_whole_messages():
     """
     Lean sometimes will not send a complet message over at a time.  It may even break up a unicode character
     like "⊢" (three bytes).
