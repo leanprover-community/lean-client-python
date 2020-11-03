@@ -1,0 +1,4 @@
+include *.rst
+include .coveragerc
+include pyproject.toml
+include tox.ini
