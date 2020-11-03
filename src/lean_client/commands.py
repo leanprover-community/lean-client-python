@@ -12,9 +12,10 @@ Everything else in this file are intermediate objects that will be contained in
 response objects.
 """
 from dataclasses import dataclass
-from typing import Optional, List, NewType, ClassVar
 from enum import Enum
+from typing import ClassVar, List, NewType, Optional
 import json
+
 
 @dataclass
 class Request:
@@ -393,5 +394,3 @@ def parse_response(data: str) -> Response:
         if response == cls.response: # type: ignore
             return cls.from_dict(dic) # type: ignore
     raise ValueError("Couldn't parse response string.")
-
-

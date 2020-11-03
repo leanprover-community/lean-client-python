@@ -4,11 +4,19 @@ Communicating with the Lean server in a Qt context.
 This is only the beginning, implementing reading a file and requesting tactic
 state. See the example use in examples/qt_interface.py.
 """
-from PyQt5.QtCore import QProcess, pyqtSignal, QObject
 from PyQt5 import QtCore
+from PyQt5.QtCore import QObject, QProcess, pyqtSignal
 
-from lean_client.commands import (parse_response, SyncRequest, InfoRequest,
-        CurrentTasksResponse, InfoResponse, AllMessagesResponse, Severity)
+from lean_client.commands import (
+    AllMessagesResponse,
+    CurrentTasksResponse,
+    InfoRequest,
+    InfoResponse,
+    Severity,
+    SyncRequest,
+    parse_response,
+)
+
 
 class QtLeanServer(QObject):
     incoming_message = pyqtSignal()

@@ -1,10 +1,10 @@
 # Lean client for Python
 
-This experimental package aims to help talking to the 
+This experimental package aims to help talking to the
 [Lean theorem prover](http://leanprover.github.io/) from Python.
 
-You can install it by cloning this repository and running 
-`pip install path_to_your_clone`. 
+You can install it by cloning this repository and running
+`pip install path_to_your_clone`.
 
 ## Core interface
 
@@ -15,13 +15,13 @@ particular the fact that Lean processes things in parallel and answer
 somewhat impredictably (depending on the presence of errors, or simply
 on elaboration and proof checking time). Interactivity can be handled
 only in an asynchronous environment. We provide (very partial) support
-for two such environments with very different patterns. 
+for two such environments with very different patterns.
 
 ## Qt interface
 
 The module `lean_client.qt_server` defines a `QtLeanServer` class which
-allows communication with Lean from a Qt event loop. 
-Qt handles asynchronicity using 
+allows communication with Lean from a Qt event loop.
+Qt handles asynchronicity using
 [signals and slots](https://doc.qt.io/qt-5/signalsandslots.html), hence
 this example can be adapted to any framework based on call-backs.
 It requires `PyQt5` (and its C++ dependencies) that you can install
@@ -46,5 +46,5 @@ path_to_your_clone[trio]`. See the example program `trio_example` in the
 `examples` folder of this repository. This example displays the tactic state for
 every line of `examples/test.lean` that has a non-empty tactic state.
 
-You can install all optional dependencies at once using 
+You can install all optional dependencies at once using
 `pip install path_to_your_clone[all]`.
