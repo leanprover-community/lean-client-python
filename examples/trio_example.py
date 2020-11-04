@@ -20,6 +20,8 @@ async def main():
                 print(f'Line {i+1}: {line}')
                 print(f'State before:\n{before}\n')
                 print(f'State after:\n{after}\n')
+
+        server.kill()
         nursery.cancel_scope.cancel()
 
 if __name__ == '__main__':
