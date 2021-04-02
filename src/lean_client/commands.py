@@ -166,6 +166,13 @@ class InfoSource:
     file: Optional[str] = None
 
 
+@dataclass
+class Widget:
+    line: int
+    column: int
+    id: int
+
+
 GoalState = NewType('GoalState', str)
 
 @dataclass
@@ -178,6 +185,7 @@ class InfoRecord:
     state: Optional[GoalState] = None
     tactic_param_idx: Optional[int] = None
     tactic_params: Optional[List[str]] = None
+    widget: Optional[Widget] = None
 
     @classmethod
     def from_dict(cls, dic):
@@ -187,6 +195,8 @@ class InfoRecord:
             dic['type_'] = dic.pop('type')
         if 'source' in dic:
             dic['source'] = InfoSource(**dic.pop('source'))
+        if 'widget' in dic:
+            dic['widget'] = Widget(**dic.pop('widget'))
         return cls(**dic)
 
 
