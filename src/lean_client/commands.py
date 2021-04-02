@@ -12,7 +12,7 @@ Everything else in this file are intermediate objects that will be contained in
 response objects.
 """
 from dataclasses import dataclass
-from typing import Optional, List, NewType, ClassVar, Union
+from typing import Optional, List, NewType, ClassVar, Union, Type
 from enum import Enum
 import json
 
@@ -24,7 +24,7 @@ def dict_to_dataclass(cls, dic: dict):
 
 class Request:
     command: ClassVar[str]
-    expect_response: ClassVar[str]
+    expect_response: ClassVar[bool]
 
     def __post_init__(self):
         self.seq_num = 0
@@ -142,8 +142,11 @@ class OkResponse(Response):
         return OkResponse(seq_num=dic['seq_num'], data=dic)
 
     def to_command_response(self, command: str) -> CommandResponse:
-        for cls in [CompleteResponse, InfoResponse, HoleCommandsResponse, SyncResponse,
-                    SearchResponse, AllHoleCommandsResponse, HoleResponse, RoiResponse]:
+        response_types: List[Type[CommandResponse]] = [
+            CompleteResponse, InfoResponse, HoleCommandsResponse, SyncResponse,
+            SearchResponse, AllHoleCommandsResponse, HoleResponse, RoiResponse
+        ]
+        for cls in response_types:
             if cls.command == command:
                 self.data['seq_num'] = self.seq_num
                 return cls.from_dict(self.data)
@@ -193,7 +196,7 @@ class CompletionCandidate:
     text: str
     type_: Optional[str] = None
     tactic_params: Optional[str] = None
-    doc: Optional[str] = None,
+    doc: Optional[str] = None
     source: Optional[Source] = None
 
     @classmethod
@@ -339,7 +342,7 @@ class HoleCommands:
 class HoleCommandsResponse(CommandResponse):
     command = 'hole_commands'
     message: Optional[str] = None
-    file: str = None
+    file: Optional[str] = None
     start: Optional[Position] = None
     end: Optional[Position] = None
     results: Optional[List[HoleCommandAction]] = None

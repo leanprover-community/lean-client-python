@@ -68,12 +68,14 @@ class TrioLeanServer:
 
         # Lean errors are rare and signify problems with the command itself
         # (e.g. an incorrect file).  They should be raised as Python errors.
+
         if isinstance(response, OkResponse):
-            response = response.to_command_response(request.command)
-        elif isinstance(response, ErrorResponse):
+            cmd_response = response.to_command_response(request.command)
+        else:
+            assert isinstance(response, ErrorResponse)
             raise ChildProcessError(f'Lean server error while executing "{request.command}":\n{response}')
 
-        return response
+        return cmd_response
 
     async def receiver(self):
         """This task waits for Lean responses, updating the server state

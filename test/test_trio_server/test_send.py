@@ -2,8 +2,8 @@ from lean_client.commands import SyncRequest, InfoRequest, SleepRequest, LongSle
 from test.test_trio_server.mock_lean import \
     LeanShouldGetRequest, LeanSendsResponse, LeanShouldNotGetRequest, LeanTakesTime, start_with_mock_lean
 from lean_client.trio_server import TrioLeanServer
-import trio
-import trio.testing
+import trio  # type: ignore
+import trio.testing  # type: ignore
 
 
 def test_normal_commands_wait_for_and_return_response():
