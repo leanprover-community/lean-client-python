@@ -1,9 +1,15 @@
-from lean_client.commands import SyncRequest, InfoRequest
-from test.test_trio_server.mock_lean import \
-    LeanShouldGetRequest, LeanShouldNotGetRequest, LeanSendsResponse, start_with_mock_lean
+from test.test_trio_server.mock_lean import (
+    LeanSendsResponse,
+    LeanShouldGetRequest,
+    LeanShouldNotGetRequest,
+    start_with_mock_lean,
+)
+
+import trio  # type: ignore
+import trio.testing  # type: ignore
+
+from lean_client.commands import InfoRequest, SyncRequest
 from lean_client.trio_server import TrioLeanServer
-import trio # type: ignore
-import trio.testing # type: ignore
 
 
 def test_full_sync_waits_until_lean_ready():

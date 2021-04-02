@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 """PyQt + Lean test"""
-import sys
 from pathlib import Path
 from typing import Tuple
+import sys
 
-from PyQt5.QtWidgets import *
 from PyQt5 import QtCore
+from PyQt5.QtWidgets import *
 
-from lean_client.qt_server import  QtLeanServer
+from lean_client.qt_server import QtLeanServer
 
 UNSOLVED = 'tactic failed, there are unsolved goals'
 

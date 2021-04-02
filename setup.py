@@ -1,19 +1,3 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
-setup(
-    name='lean_client',
-    version='0.0.1',
-    url='https://github.com/PatrickMassot/lean-client-python',
-    author='Patrick Massot',
-    author_email='patrickmassot@free.fr',
-    description='Python talking to the Lean prover',
-    packages=find_packages('src'),
-    package_dir={'': 'src'},
-    package_data = {
-        'lean_client': ['py.typed'],
-    },
-    install_requires=[],
-    extras_require = {
-                'trio':  ['trio>=0.13.0'],
-                'qt': ['PyQt5', 'PyQt5-stubs'],
-                'all' : ['PyQt5', 'PyQt5-stubs', 'trio>=0.13.0']})
+setup()

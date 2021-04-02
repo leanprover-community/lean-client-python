@@ -5,13 +5,14 @@ interface which do not depend on having Lean installed in a certain manner.
 Instead one can build a "lean script" which is run by a fake lean server.
 """
 
-import trio  # type: ignore
-from typing import List, Dict, Deque, Awaitable
-import json
 from collections import deque
 from dataclasses import dataclass
-import trio.testing # type: ignore
+from typing import Awaitable, Deque, Dict, List
+import json
+
 from trio import Cancelled
+import trio  # type: ignore
+import trio.testing  # type: ignore
 
 from lean_client.commands import Request
 from lean_client.trio_server import TrioLeanServer

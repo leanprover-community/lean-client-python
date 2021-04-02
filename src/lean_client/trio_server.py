@@ -5,15 +5,26 @@ Communicating with the Lean server in a trio context
 This is only the beginning, implementing reading a file and requesting tactic
 state. See the example use in examples/trio_example.py.
 """
-from typing import Optional, List, Dict, Awaitable, Union
-from subprocess import PIPE
 from pathlib import Path
+from subprocess import PIPE
+from typing import Awaitable, Dict, List, Optional, Union
 
-import trio # type: ignore
+import trio  # type: ignore
 
-from lean_client.commands import (parse_response, SyncRequest, InfoRequest,
-        Request, CommandResponse, Message, Task, Response,
-        InfoResponse, AllMessagesResponse, Severity, CurrentTasksResponse)
+from lean_client.commands import (
+    AllMessagesResponse,
+    CommandResponse,
+    CurrentTasksResponse,
+    InfoRequest,
+    InfoResponse,
+    Message,
+    Request,
+    Response,
+    Severity,
+    SyncRequest,
+    Task,
+    parse_response,
+)
 
 
 class TrioLeanServer:

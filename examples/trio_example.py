@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 from pathlib import Path
 
-import trio # type: ignore
+import trio  # type: ignore
 
 from lean_client.trio_server import TrioLeanServer
+
 
 async def main():
     lines = Path('test.lean').read_text().split('\n')

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  release:
+    types: [published]
+  schedule:
+    # Daily at 3:21
+    - cron: '21 3 * * *'
+
+jobs:
+  ci:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        python-version:
+          - name: pypy3
+            toxenv: pypy3-build
+          - name: pypy3
+            toxenv: pypy3-safety
+          - name: pypy3
+            toxenv: pypy3-tests
+          - name: 3.7
+            toxenv: py37-build
+          - name: 3.7
+            toxenv: py37-safety
+          - name: 3.7
+            toxenv: py37-tests
+          - name: 3.8
+            toxenv: py38-build
+          - name: 3.8
+            toxenv: py38-safety
+          - name: 3.8
+            toxenv: py38-tests
+          - name: 3.9
+            toxenv: py39-build
+          - name: 3.9
+            toxenv: py39-safety
+          - name: 3.9
+            toxenv: py39-tests
+          - name: 3.9
+            toxenv: readme
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version.name }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version.name }}
+    - name: Ensure we have new enough versions to respect python_version
+      run: python -m pip install -U pip setuptools
+    - name: Install dependencies
+      run: brew install gmp coreutils
+      if: runner.os == 'macOS'
+    - name: Install elan
+      run: |
+          curl https://raw.githubusercontent.com/Kha/elan/master/elan-init.sh -sSf | sh -s -- --default-toolchain leanprover-community/lean:3.23.0 -y
+    - name: Add Lean to PATH
+      run: echo "$HOME/.elan/bin/" >> $GITHUB_PATH
+      if: runner.os != 'Windows'
+    - name: Add Lean to PATH
+      run: echo "${HOME}/.elan/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      if: runner.os == 'Windows'
+    - name: Install tox
+      run: python -m pip install tox
+    - name: Run tox
+      run: python -m tox -e "${{ matrix.python-version.toxenv }}"
