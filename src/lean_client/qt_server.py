@@ -80,7 +80,7 @@ class QtLeanServer(QObject):
                 # TODO: Handle responses based on the expected type.
                 #  See the trio server for an example.
                 #  This is a stop gap that preserves the current behavior.
-                info_resp = resp.parse_response('info')
+                info_resp = resp.to_command_response('info')
                 assert isinstance(info_resp, InfoResponse)
                 self.goal_state = info_resp.record.state
                 self.state_update.emit()
