@@ -8,6 +8,7 @@ state. See the example use in examples/trio_example.py.
 from typing import Optional, List, Dict, Awaitable, Union
 from subprocess import PIPE
 from pathlib import Path
+import os
 
 import trio # type: ignore
 
@@ -83,16 +84,16 @@ class TrioLeanServer:
                     self.responses[resp.seq_num] = resp
                     self.response_events[resp.seq_num].set()
 
-    async def full_sync(self, filename, content=None) -> None:
+    async def full_sync(self, path, content=None) -> None:
         """Fully compile a Lean file before returning."""
         # Waiting for the response is not enough, so we prepare another event
-        await self.send(SyncRequest(filename, content))
+        await self.send(SyncRequest(os.fspath(path), content))
         self.is_fully_ready = trio.Event()
         await self.is_fully_ready.wait()
 
-    async def state(self, filename, line, col) -> str:
+    async def state(self, path, line, col) -> str:
         """Tactic state"""
-        resp = await self.send(InfoRequest(filename, line, col))
+        resp = await self.send(InfoRequest(os.fspath(path), line, col))
         if isinstance(resp, InfoResponse) and resp.record:
             return resp.record.state or ''
         else:
