@@ -7,8 +7,9 @@ state. See the example use in examples/qt_interface.py.
 from PyQt5.QtCore import QProcess, pyqtSignal, QObject
 from PyQt5 import QtCore
 
-from lean_client.commands import (parse_response, SyncRequest, InfoRequest,
-        CurrentTasksResponse, InfoResponse, AllMessagesResponse, Severity)
+from lean_client.commands import (SyncRequest, InfoRequest,
+                                  CurrentTasksResponse, OkResponse, InfoResponse, AllMessagesResponse, Severity,
+                                  CommandResponse)
 
 class QtLeanServer(QObject):
     incoming_message = pyqtSignal()
@@ -61,13 +62,10 @@ class QtLeanServer(QObject):
         """Called when Lean outputs something."""
         data = self.process.readAllStandardOutput().data().decode()
         for line in data.strip().split('\n'):
-            resp = parse_response(line)
+            resp = CommandResponse.parse_response(line)
             if self.debug:
                 print(f'Received {resp}')
-            if isinstance(resp, InfoResponse):
-                self.goal_state = resp.record.state
-                self.state_update.emit()
-            elif isinstance(resp, CurrentTasksResponse):
+            if isinstance(resp, CurrentTasksResponse):
                 self.current_tasks = resp.tasks
                 if self.is_busy and not resp.is_running:
                     self.is_ready.emit()
@@ -78,6 +76,14 @@ class QtLeanServer(QObject):
                     if msg.severity == Severity.error:
                         self.error.emit(msg.text)
                 self.incoming_message.emit()
+            elif isinstance(resp, OkResponse) and 'record' in resp.data:
+                # TODO: Handle responses based on the expected type.
+                #  See the trio server for an example.
+                #  This is a stop gap that preserves the current behavior.
+                info_resp = resp.to_command_response('info')
+                assert isinstance(info_resp, InfoResponse)
+                self.goal_state = info_resp.record.state
+                self.state_update.emit()
 
     def kill(self):
         self.process.kill()
